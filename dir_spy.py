@@ -6,6 +6,7 @@
 from operator import eq
 import socket
 import gzip
+import argparse
 
 def is_gzip_encoded(bytes_obj):
     """ Creates a new list while checking each line for gzip compressed data.
@@ -26,10 +27,11 @@ def is_gzip_encoded(bytes_obj):
     return b''.join(bytes_list)
 
 class HttpSocket():
+    """ Wrapper for a http socket """
 
     def __init__(self, host, port=80, http_sock=None):
 
-        self.BUFF_SIZE = 4096
+        self.BUFF_SIZE = 4096 
         self.host = host
         self.port = port
         self.chunks = []
@@ -40,13 +42,13 @@ class HttpSocket():
 
     
     def connect(self):
-        print('Connecting to socket ...')
+        """ Connect the socket """
         self.http_sock.connect((self.host, self.port))
         print('Socket connected ...')
 
     
     def send(self, header):
-        
+        """ Sends the header to remote host. """
         self.header = header
 
         total_sent = 0
@@ -58,13 +60,13 @@ class HttpSocket():
             if sent == 0:
                 raise RuntimeError("socket connection broken.")
             total_sent += sent
-
+        print('Data sent ...')
         
     
     def receive(self):
+        """ Receive data from the host """
         self.chunks = []
 
-        print('Starting data received ...')
         while True:
             data = self.http_sock.recv(self.BUFF_SIZE)
             self.chunks.append(data)
@@ -73,6 +75,9 @@ class HttpSocket():
         print('Data received ...')
 
     def decode(self):
+        """ Decodes the data into utf-8 and returns the string, if data is
+            gzip compressed, it decompresses first before decoding.
+        """
         self.byte_data = b''.join(self.chunks)
 
         self.byte_data_decompress = is_gzip_encoded(self.byte_data)
@@ -88,24 +93,41 @@ class HttpSocket():
 
     
 def get_header(directory, host):
+    """ Creates a GET request with directory and host. """
+    return f"GET /{directory} HTTP/1.1\r\nHost: {host}\r\n\r\n"
 
-    return f"GET /{directory} HTTP 1.1\r\nHost:{host}\r\n\r\n"
+
+# Option parser.
+parser = argparse.ArgumentParser()
+
+parser.add_argument("-f", "--file", help="Wordlist file.")
+
+parser.add_argument("-ht", "--host", help="Host address to search.")
+
+args = parser.parse_args()
 
 
-host = 'www.python.org'
 
-directory = '/docs'
+sock = HttpSocket(args.host)
 
-http_obj = HttpSocket(host)
+sock.connect()
 
-http_obj.connect()
+with open(args.file, 'r') as file:
 
-header = get_header(directory, host)
+    for line in file:
 
-http_obj.send(header)
+        line = line.replace('\n', '')
 
-http_obj.receive()
+        header = get_header(line, args.host)
 
-response = http_obj.decode()
+        sock.send(header)
 
-print(response)
+        sock.receive()
+
+        response = sock.decode()
+
+        print(response)
+
+
+sock.close()
+
