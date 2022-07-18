@@ -44,7 +44,6 @@ class HttpSocket():
     def connect(self):
         """ Connect the socket """
         self.http_sock.connect((self.host, self.port))
-        print('Socket connected ...')
 
     
     def send(self, header):
@@ -60,7 +59,6 @@ class HttpSocket():
             if sent == 0:
                 raise RuntimeError("socket connection broken.")
             total_sent += sent
-        print('Data sent ...')
         
     
     def receive(self):
@@ -72,7 +70,6 @@ class HttpSocket():
             self.chunks.append(data)
             if len(data) < self.BUFF_SIZE: break
         
-        print('Data received ...')
 
     def decode(self):
         """ Decodes the data into utf-8 and returns the string, if data is
@@ -97,12 +94,23 @@ def get_header(directory, host):
     return f"GET /{directory} HTTP/1.1\r\nHost: {host}\r\n\r\n"
 
 
+def get_status(response):
+    """ Parse first line of http response for status code 200."""
+
+    lines = response.split('\n')
+
+    return '200' in lines[0]
+
+
+
 # Option parser.
 parser = argparse.ArgumentParser()
 
-parser.add_argument("-f", "--file", help="Wordlist file.")
+parser.add_argument("host", help="Host address to search.")
 
-parser.add_argument("-ht", "--host", help="Host address to search.")
+parser.add_argument("file", help="Wordlist file.")
+
+parser.add_argument("-p", "--port", help="Optional port number, default is 80.")
 
 args = parser.parse_args()
 
@@ -111,6 +119,8 @@ args = parser.parse_args()
 sock = HttpSocket(args.host)
 
 sock.connect()
+
+directories_found = []
 
 with open(args.file, 'r') as file:
 
@@ -126,8 +136,24 @@ with open(args.file, 'r') as file:
 
         response = sock.decode()
 
-        print(response)
+        dir_found = get_status(response)
+
+        if dir_found:
+            directories_found.append(line)
 
 
 sock.close()
+
+
+print('Scan results from : ')
+print(f"Host: {args.host}")
+print(f"Wordlist: {args.file}")
+print("----------------------")
+
+if len(directories_found) > 0:
+    for directory in directories_found:
+        print(directory)
+else:
+    print('No results matched from this wordlist.')
+
 
